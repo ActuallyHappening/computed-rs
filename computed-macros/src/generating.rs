@@ -1,6 +1,6 @@
 use crate::{Accessor, ParsedCode, ParsedField};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens, quote_spanned};
 use syn::*;
 
 impl ParsedCode {
@@ -9,7 +9,7 @@ impl ParsedCode {
         let accessor_field_impls = self
             .fields
             .into_iter()
-            .map(|field| field.accessor_field_impls(struct_ident.clone()));
+            .map(|field| field.accessor_field_impl(struct_ident.clone()));
 
         quote! {
                 #(#accessor_field_impls)*
@@ -17,12 +17,25 @@ impl ParsedCode {
     }
 
 		fn check_soundness(&self) -> TokenStream {
-			todo!()
+			let struct_ident = &self.struct_ident;
+			let mut assertions = TokenStream::new();
+
+			// asserts all invalidate(...) fields are actually present
+			self.fields.iter().for_each(|f| {
+				let field_name = f.name.clone();
+				assertions.extend(quote_spanned!{field_name.span()=>
+					::computed::static_assertions::assert_fields!(#struct_ident: #field_name);
+				}.into_token_stream());
+			});
+
+
+
+			assertions
 		}
 }
 
 impl ParsedField {
-    pub fn accessor_field_impls(self, struct_ident: Ident) -> TokenStream {
+    pub fn accessor_field_impl(self, struct_ident: Ident) -> TokenStream {
         // accessors
         let attrs = &self.attrs;
         let accessor_fns = attrs.accessors.iter().map(|accessor| {
