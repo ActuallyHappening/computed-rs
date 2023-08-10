@@ -1,19 +1,24 @@
-use crate::{ParsedField, Accessor, ParsedCode};
+use crate::{Accessor, ParsedCode, ParsedField};
 use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 use syn::*;
-use quote::{quote, format_ident};
 
 impl ParsedCode {
-	 pub fn into_tokens(self) -> TokenStream {
-				let struct_ident = self.struct_ident;
-				let accessor_field_impls = self.fields.into_iter().map(|field| {
-						field.accessor_field_impls(struct_ident.clone())
-				});
+    pub fn into_tokens(self) -> TokenStream {
+        let struct_ident = self.struct_ident;
+        let accessor_field_impls = self
+            .fields
+            .into_iter()
+            .map(|field| field.accessor_field_impls(struct_ident.clone()));
 
-				quote! {
-						#(#accessor_field_impls)*
-				}
+        quote! {
+                #(#accessor_field_impls)*
+        }
     }
+
+		fn check_soundness(&self) -> TokenStream {
+			todo!()
+		}
 }
 
 impl ParsedField {
