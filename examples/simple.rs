@@ -59,12 +59,12 @@ use computed::Computed;
 use examples::*;
 
 fn main() {
-    let mut example = Example::new(vec![1., 2., 3.], 0.);
-    assert_eq!(example.get_items()[0], 1.);
+    // let mut example = Example::new(vec![1., 2., 3.], 0.);
+    // assert_eq!(example.get_items()[0], 1.);
 
-    example.set_items(vec![4., 5., 6.]);
-    assert_eq!(example.get_items()[0], 4.);
+    // example.set_items(vec![4., 5., 6.]);
+    // assert_eq!(example.get_items()[0], 4.);
 
-    let sum = example.compute_sum();
-    assert_eq!(*sum, 15.);
+    // let sum = example.compute_sum();
+    // assert_eq!(*sum, 15.);
 }

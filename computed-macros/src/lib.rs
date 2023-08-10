@@ -7,7 +7,7 @@ use proc_macro_error::{abort, proc_macro_error};
 
 use syn::{
     parse_macro_input, DataStruct, DeriveInput, Fields,
-    FieldsNamed, Path, Type,
+    FieldsNamed, Path, Type, Visibility,
 };
 
 #[proc_macro_error]
@@ -29,9 +29,11 @@ struct ParsedCode {
 /// sum: Vec<f32>
 struct ParsedField {
     /// Name of field, e.g. sum
-    name: Ident,
+    self_name: Ident,
     /// Name of type, e.g. Vec<f32>
-    type_name: Type,
+    self_type: Type,
+		/// Validated to be private
+		vis: Visibility,
     /// Attributes of field, e.g. get, set, invalidates
     attrs: ParsedAttr,
 }

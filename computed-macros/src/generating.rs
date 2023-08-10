@@ -1,37 +1,95 @@
+use std::collections::HashMap;
+
 use crate::{Accessor, ParsedCode, ParsedField};
+use derive_new::new;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens, quote_spanned};
+use proc_macro_error::abort;
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::*;
+
+#[derive(new)]
+struct LinkedCode {
+    struct_ident: Ident,
+
+    #[new(default)]
+    computed_fields: Vec<ComputedField>,
+
+    #[new(default)]
+    invalidating_fields: Vec<(Ident, LinkedAccessor)>,
+}
+
+struct ComputedField {
+    self_name: Ident,
+    self_type: Type,
+
+    depending_fields: Vec<(Ident, Type)>,
+    computing_func: Path,
+}
+
+#[derive(Default)]
+struct LinkedAccessor {
+    get: bool,
+    set_invalidating: Option<Ident>,
+}
 
 impl ParsedCode {
     pub fn into_tokens(self) -> TokenStream {
-        let struct_ident = self.struct_ident;
-        let accessor_field_impls = self
-            .fields
-            .into_iter()
-            .map(|field| field.accessor_field_impl(struct_ident.clone()));
-
-        quote! {
-                #(#accessor_field_impls)*
-        }
+        self.check_soundness();
+        todo!()
     }
 
-		fn check_soundness(&self) -> TokenStream {
-			let struct_ident = &self.struct_ident;
-			let mut assertions = TokenStream::new();
+    fn check_soundness(self) -> LinkedCode {
+        let struct_ident = self.struct_ident;
 
-			// asserts all invalidate(...) fields are actually present
-			self.fields.iter().for_each(|f| {
-				let field_name = f.name.clone();
-				assertions.extend(quote_spanned!{field_name.span()=>
-					::computed::static_assertions::assert_fields!(#struct_ident: #field_name);
-				}.into_token_stream());
-			});
+        let mut fields = HashMap::new();
+        for field in self.fields {
+            fields.insert(field.self_name.clone(), field);
+        }
 
+        let mut computed_fields = HashMap::new();
 
+        // extract fields that are computed
+        for field in fields.values() {
+            match &field.attrs.computed {
+                Some(computing_func) => {
+                    let self_name = field.self_name.clone();
+                    let self_type = field.self_type.clone();
 
-			assertions
-		}
+                    if let Some(invalidates) = &field.attrs.invalidates {
+                        abort!(
+                            invalidates,
+                            "Invalidates attribute is not allowed on a computed field"
+                        );
+                    }
+                    if !field.attrs.accessors.is_empty() {
+                        abort!(field.self_name, "Accessor attributes are not allowed on a computed field"; help = "You can access your computed field by calling the generated function `compute_foo()`");
+                    }
+
+                    computed_fields.insert(
+                        self_name.clone(),
+                        ComputedField {
+                            self_name,
+                            self_type,
+                            computing_func: computing_func.clone(),
+                            depending_fields: Vec::new(),
+                        },
+                    );
+                }
+                None => {}
+            }
+        }
+        for computed_field in computed_fields.keys() {
+            fields.remove(computed_field).unwrap();
+        }
+
+        let invalidating_fields = Vec::new();
+
+        LinkedCode {
+            struct_ident,
+            computed_fields: computed_fields.into_values().into_iter().collect(),
+            invalidating_fields,
+        }
+    }
 }
 
 impl ParsedField {
@@ -40,8 +98,8 @@ impl ParsedField {
         let attrs = &self.attrs;
         let accessor_fns = attrs.accessors.iter().map(|accessor| {
             (*accessor).accessor_fns(
-                self.name.clone(),
-                self.type_name.clone(),
+                self.self_name.clone(),
+                self.self_type.clone(),
                 attrs.invalidates.clone(),
             )
         });

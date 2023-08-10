@@ -13,10 +13,12 @@ impl ParsedCode {
                 let name = field.ident.unwrap();
                 let type_name = field.ty;
                 let attrs = ParsedAttr::from_attributes(field.attrs);
+								let vis = field.vis;
 
                 ParsedField {
-                    name,
-                    type_name,
+                    self_name: name,
+                    self_type: type_name,
+										vis,
                     attrs,
                 }
             })
