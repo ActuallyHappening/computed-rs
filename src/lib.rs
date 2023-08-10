@@ -1,13 +1,13 @@
 // Read https://docs.rs/proc-macro-error/latest/proc_macro_error/#macros
 
-use std::collections::HashSet;
 
-use proc_macro2::{Ident, TokenStream};
+
+use proc_macro2::Ident;
 use proc_macro_error::{abort, proc_macro_error};
-use quote::{format_ident, quote};
+
 use syn::{
-    parenthesized, parse_macro_input, Attribute, DataStruct, DeriveInput, Field, Fields,
-    FieldsNamed, Meta, MetaList, Path, Type,
+    parse_macro_input, DataStruct, DeriveInput, Fields,
+    FieldsNamed, Path, Type,
 };
 
 #[proc_macro_error]

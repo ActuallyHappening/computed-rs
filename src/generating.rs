@@ -5,16 +5,23 @@ use quote::{quote, format_ident};
 
 impl ParsedCode {
 	 pub fn into_tokens(self) -> TokenStream {
-        todo!()
+				let struct_ident = self.struct_ident;
+				let accessor_field_impls = self.fields.into_iter().map(|field| {
+						field.accessor_field_impls(struct_ident.clone())
+				});
+
+				quote! {
+						#(#accessor_field_impls)*
+				}
     }
 }
 
 impl ParsedField {
-    pub fn into_tokens(self, struct_ident: Ident) -> TokenStream {
+    pub fn accessor_field_impls(self, struct_ident: Ident) -> TokenStream {
         // accessors
         let attrs = &self.attrs;
         let accessor_fns = attrs.accessors.iter().map(|accessor| {
-            (*accessor).into_tokens(
+            (*accessor).accessor_fns(
                 self.name.clone(),
                 self.type_name.clone(),
                 attrs.invalidates.clone(),
@@ -31,7 +38,7 @@ impl ParsedField {
 
 impl Accessor {
     /// pub fn get_#field_ident(&self) -> &#type_name
-    pub fn into_tokens(
+    pub fn accessor_fns(
         self,
         field_ident: Ident,
         type_name: Type,
