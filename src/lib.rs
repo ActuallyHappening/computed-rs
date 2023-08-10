@@ -4,10 +4,10 @@ use std::collections::HashSet;
 
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::{abort, emit_error, proc_macro_error};
-use quote::{quote, ToTokens};
+use quote::{quote, ToTokens, format_ident};
 use syn::{
     parenthesized, parse_macro_input, parse_quote, Attribute, DataStruct, DeriveInput, Fields,
-    FieldsNamed, Path, Type, TypeGroup, Meta, MetaList,
+    FieldsNamed, Meta, MetaList, Path, Type, TypeGroup,
 };
 
 #[proc_macro_error]
@@ -17,24 +17,18 @@ pub fn computed(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     computed_impl(input).into()
 }
 
-// struct ParsedCode {}
-
-// struct GetAccessor {
-//     field_ident: Ident,
-//     type_name: TypeGroup,
-// }
-// struct SetAccessor {
-//     field_ident: Ident,
-//     type_name: Ident,
-//     invalidates: Vec<Ident>,
-// }
-
+/// #[get, set, invalidates(sum)]
+/// sum: Vec<f32>
 struct ParsedField {
+    /// Name of field, e.g. sum
     name: Ident,
+    /// Name of type, e.g. Vec<f32>
     type_name: Type,
+    /// Attributes of field, e.g. get, set, invalidates
     attrs: ParsedAttr,
 }
 
+/// get, set, invalidates, computed
 struct ParsedAttr {
     accessors: Vec<Accessor>,
     invalidates: Option<Ident>,
@@ -48,10 +42,11 @@ enum Accessor {
 }
 
 fn computed_impl(input: DeriveInput) -> proc_macro2::TokenStream {
+    let struct_ident = &input.ident;
     match input.data {
         syn::Data::Struct(DataStruct { fields, .. }) => match fields {
             Fields::Named(FieldsNamed { named, .. }) => {
-                let fields = named
+                let field_accessor_impls = named
                     .into_iter()
                     .map(|field| {
                         let name = field.ident.unwrap();
@@ -64,9 +59,12 @@ fn computed_impl(input: DeriveInput) -> proc_macro2::TokenStream {
                             attrs,
                         }
                     })
+                    .map(|field| field.into_tokens(struct_ident.clone()))
                     .collect::<Vec<_>>();
 
-                todo!()
+                quote! {
+                    #(#field_accessor_impls)*
+                }
             }
             _ => abort!(input.ident, "Only named fields are supported"),
         },
@@ -90,11 +88,15 @@ impl ParsedAttr {
         let mut computed = None;
 
         for attr in attrs {
-						if let Attribute { meta: Meta::List(MetaList { path, ..}), .. } = &attr {
-							if !path.is_ident("computed") {
-								continue;
-							}
-						}
+            if let Attribute {
+                meta: Meta::List(MetaList { path, .. }),
+                ..
+            } = &attr
+            {
+                if !path.is_ident("computed") {
+                    continue;
+                }
+            }
             if let Err(err) = attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("get") {
                     accessors.insert(Accessor::Get);
@@ -135,15 +137,44 @@ impl ParsedAttr {
     }
 }
 
-// impl ToTokens for GetAccessor {
-//     fn to_tokens(&self, tokens: &mut TokenStream) {
-//         let field_ident = &self.field_ident;
-//         let type_name = &self.type_name;
-//         let func_name = Ident::new(&format!("get_{}", field_ident), field_ident.span());
-//         tokens.extend(quote! {
-//             pub fn #func_name(&self) -> &#type_name {
-//                 &self.#field_ident
-//             }
-//         });
-//     }
-// }
+impl ParsedField {
+    fn into_tokens(self, struct_ident: Ident) -> TokenStream {
+        // validate
+
+        // accessors
+        let accessor_fns = self.attrs.accessors.iter().map(|accessor| {
+            accessor
+                .clone()
+                .into_tokens(self.name.clone(), self.type_name.clone())
+        });
+
+        quote! {
+            impl #struct_ident {
+                #(#accessor_fns)*
+            }
+        }
+    }
+}
+
+impl Accessor {
+    fn into_tokens(self, field_ident: Ident, type_name: Type) -> TokenStream {
+        match self {
+            Accessor::Get => {
+                let func_name = format_ident!("get_{}", field_ident);
+                quote! {
+                    pub fn #func_name(&self) -> &#type_name {
+                        &self.#field_ident
+                    }
+                }
+            }
+            Accessor::Set => {
+                let func_name = format_ident!("set_{}", field_ident);
+                quote! {
+                    pub fn #func_name(&mut self, #field_ident: #type_name) {
+                        self.#field_ident = #field_ident;
+                    }
+                }
+            }
+        }
+    }
+}

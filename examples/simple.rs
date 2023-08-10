@@ -48,6 +48,6 @@ use computed::Computed;
 use examples::*;
 
 fn main() {
-    // let example = Example::new(vec![1., 2., 3.]);
-    // let _ = example.get_items()[0];
+    let example = Example::new(vec![1., 2., 3.]);
+    let _ = example.get_items()[0];
 }
